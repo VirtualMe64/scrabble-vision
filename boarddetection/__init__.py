@@ -1,0 +1,1 @@
+from .red_board_detection import RedBoardDetector
