@@ -1,7 +1,7 @@
 from boarddetection import RedBoardDetector
 import cv2
 
-size = (800, 800)
+size = (600, 600)
 
 image = cv2.imread('images/board.jpg')
 cv2.imshow('image', cv2.resize(image, size))

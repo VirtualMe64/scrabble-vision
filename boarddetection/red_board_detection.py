@@ -7,6 +7,22 @@ class RedBoardDetector(BoardDetector):
         
         board = RedBoardDetector.isolateBoard(image)
 
+        redMask = RedBoardDetector.maskRed(cv2.cvtColor(board, cv2.COLOR_BGR2HSV))
+        invMask = cv2.bitwise_not(redMask)
+
+        # TODO: handle failure
+        # find the largest contour -- should be the playing area
+        contours = cv2.findContours(invMask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
+        playingArea = max(contours, key=cv2.contourArea)
+
+        # get corners of playing area, use them to warp board to 800x800 square
+        corners = RedBoardDetector.getCorners([tuple(c[0]) for c in playingArea])
+        width = 800
+        height = 800
+        dst = np.array([[0, height], [width, height], [width, 0], [0, 0]], np.float32)
+        M = cv2.getPerspectiveTransform(corners, dst)
+        board = cv2.warpPerspective(board, M, (width, height))
+
         return board
 
     def isolateBoard(image):
@@ -22,18 +38,7 @@ class RedBoardDetector(BoardDetector):
         blurred = cv2.GaussianBlur(image, (7, 7), 0)    # blur the image
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)   # convert to HSV
         
-        # filter to where: s > 50, v > 0, h < 35 or h > 330
-        lower = np.array([0, 127, 127], np.uint8)
-        upper = np.array([35, 255, 255], np.uint8)
-        mask1 = cv2.inRange(hsv, lower, upper)
-
-        lower = np.array([130, 127, 127], np.uint8)
-        upper = np.array([255, 255, 255], np.uint8)
-        mask2 = cv2.inRange(hsv, lower, upper)
-
-        mask = cv2.bitwise_or(mask1, mask2)
-        mask = cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=1) # increase mask size to fill in gaps
-
+        mask = RedBoardDetector.maskRed(hsv)
         # cv2.imshow('mask', cv2.resize(mask, (800, 800)))
         # cv2.waitKey(0)
 
@@ -63,6 +68,20 @@ class RedBoardDetector(BoardDetector):
 
         return image
 
+    def maskRed(hsv_image):
+       # filter to where: s > 50, v > 0, h < 35 or h > 330
+        lower = np.array([0, 127, 127], np.uint8)
+        upper = np.array([35, 255, 255], np.uint8)
+        mask1 = cv2.inRange(hsv_image, lower, upper)
+
+        lower = np.array([130, 127, 127], np.uint8)
+        upper = np.array([255, 255, 255], np.uint8)
+        mask2 = cv2.inRange(hsv_image, lower, upper)
+
+        mask = cv2.bitwise_or(mask1, mask2)
+        mask = cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=1) # increase mask size to fill in gaps
+        return mask
+
     def getCorners(points):
         '''
         Get the four corners of a set of points making up a quadrilateral
@@ -71,7 +90,7 @@ class RedBoardDetector(BoardDetector):
 
         # x, y weights for the corneres
         # in the order of bottom-left, bottom-right, top-right, top-left
-        weights = [(-2, 5), (2, 5), (2, -5), (-2, -5)]
+        weights = [(-5, 5), (5, 5), (5, -5), (-5, -5)]
 
         lowest = min(points, key=lambda x: x[1])
         leftmost = min(points, key=lambda x: x[0])
